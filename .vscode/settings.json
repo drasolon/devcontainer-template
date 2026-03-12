@@ -1,0 +1,8 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^git -C /home/draso/devcontainer-template status --short && echo '---' && git -C /home/draso/devcontainer-template branch --show-current && echo '---' && git -C /home/draso/devcontainer-template remote -v$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}
