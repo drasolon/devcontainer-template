@@ -30,6 +30,8 @@ devcontainer-template/
 │   ├── IMAGE_SELECTION.md            # Base image explanations & decision matrix
 │   ├── GENERATORS_GUIDE.md           # How to generate config files
 │   └── EXTENSIONS_GUIDE.md           # VS Code extension recommendations
+├── scripts/
+│   └── setup-template.sh             # One-command installer for any repo
 └── tests/
     └── TEST_TEMPLATES.md             # Test scripts for each component
 ```
@@ -73,10 +75,14 @@ devcontainer-template/
 
 To reuse this template in any project with minimal effort:
 
-1. Copy this repository's Copilot instructions into your target project:
+1. Run the one-command bootstrap from your target repository root:
    ```bash
-   mkdir -p .github
-   curl -fsSL <RAW_URL_TO_THIS_REPO>/.github/copilot-instructions.md -o .github/copilot-instructions.md
+   bash <(curl -fsSL https://raw.githubusercontent.com/drasolon/devcontainer-template/main/scripts/setup-template.sh)
+   ```
+
+   Optional target directory + overwrite:
+   ```bash
+   bash <(curl -fsSL https://raw.githubusercontent.com/drasolon/devcontainer-template/main/scripts/setup-template.sh) /path/to/repo --force
    ```
 
 2. Open Copilot Chat in that project and run:
