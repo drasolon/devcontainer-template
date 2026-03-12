@@ -80,6 +80,12 @@ To reuse this template in any project with minimal effort:
    bash <(curl -fsSL https://raw.githubusercontent.com/drasolon/devcontainer-template/main/scripts/setup-template.sh)
    ```
 
+   Show options/version:
+   ```bash
+   bash <(curl -fsSL https://raw.githubusercontent.com/drasolon/devcontainer-template/main/scripts/setup-template.sh) --help
+   bash <(curl -fsSL https://raw.githubusercontent.com/drasolon/devcontainer-template/main/scripts/setup-template.sh) --version
+   ```
+
    Optional target directory + overwrite:
    ```bash
    bash <(curl -fsSL https://raw.githubusercontent.com/drasolon/devcontainer-template/main/scripts/setup-template.sh) /path/to/repo --force

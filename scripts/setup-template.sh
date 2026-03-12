@@ -1,12 +1,57 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_VERSION="1.1.0"
 REPO_RAW_BASE="https://raw.githubusercontent.com/drasolon/devcontainer-template/main"
 INSTRUCTIONS_PATH=".github/copilot-instructions.md"
 SOURCE_URL="$REPO_RAW_BASE/$INSTRUCTIONS_PATH"
 
-TARGET_DIR="${1:-.}"
-FORCE="${2:-}"
+usage() {
+  cat <<EOF
+Usage:
+  setup-template.sh [TARGET_DIR] [--force]
+  setup-template.sh --help
+  setup-template.sh --version
+
+Arguments:
+  TARGET_DIR   Target repository directory (default: current directory)
+  --force      Overwrite existing .github/copilot-instructions.md
+
+Examples:
+  setup-template.sh
+  setup-template.sh /path/to/repo
+  setup-template.sh /path/to/repo --force
+EOF
+}
+
+TARGET_DIR="."
+FORCE=""
+
+for arg in "$@"; do
+  case "$arg" in
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    --version|-v)
+      echo "$SCRIPT_VERSION"
+      exit 0
+      ;;
+    --force)
+      FORCE="--force"
+      ;;
+    *)
+      if [[ "$TARGET_DIR" == "." ]]; then
+        TARGET_DIR="$arg"
+      else
+        echo "❌ Unexpected argument: $arg"
+        echo ""
+        usage
+        exit 1
+      fi
+      ;;
+  esac
+done
 
 if [[ ! -d "$TARGET_DIR" ]]; then
   echo "❌ Target directory does not exist: $TARGET_DIR"
@@ -18,7 +63,7 @@ mkdir -p "$TARGET_DIR/.github"
 
 if [[ -f "$TARGET_FILE" && "$FORCE" != "--force" ]]; then
   echo "ℹ️ $TARGET_FILE already exists."
-  echo "   Use --force as second argument to overwrite."
+  echo "   Use --force to overwrite."
   echo "   Example: ./scripts/setup-template.sh /path/to/repo --force"
   exit 0
 fi
