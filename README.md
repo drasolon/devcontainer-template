@@ -80,6 +80,13 @@ To reuse this template in any project with minimal effort:
    bash <(curl -fsSL https://raw.githubusercontent.com/drasolon/devcontainer-template/main/scripts/setup-template.sh)
    ```
 
+   Default behavior installs the full template set:
+   - `.github/copilot-instructions.md`
+   - `prompts/*`
+   - `components/*`
+   - `templates/*`
+   - `tests/TEST_TEMPLATES.md`
+
    Show options/version:
    ```bash
    bash <(curl -fsSL https://raw.githubusercontent.com/drasolon/devcontainer-template/main/scripts/setup-template.sh) --help
@@ -89,6 +96,11 @@ To reuse this template in any project with minimal effort:
    Optional target directory + overwrite:
    ```bash
    bash <(curl -fsSL https://raw.githubusercontent.com/drasolon/devcontainer-template/main/scripts/setup-template.sh) /path/to/repo --force
+   ```
+
+   Optional minimal mode (instructions only):
+   ```bash
+   bash <(curl -fsSL https://raw.githubusercontent.com/drasolon/devcontainer-template/main/scripts/setup-template.sh) --minimal
    ```
 
 2. Open Copilot Chat in that project and run:

@@ -1,31 +1,47 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_VERSION="1.1.0"
+SCRIPT_VERSION="1.2.0"
 REPO_RAW_BASE="https://raw.githubusercontent.com/drasolon/devcontainer-template/main"
 INSTRUCTIONS_PATH=".github/copilot-instructions.md"
-SOURCE_URL="$REPO_RAW_BASE/$INSTRUCTIONS_PATH"
+
+ALL_TEMPLATE_PATHS=(
+  ".github/copilot-instructions.md"
+  "prompts/MAIN_WIZARD.md"
+  "prompts/COPILOT_GUIDE.md"
+  "components/LANGUAGES.md"
+  "components/DATABASES.md"
+  "components/GIS.md"
+  "components/DEV_TOOLS.md"
+  "templates/IMAGE_SELECTION.md"
+  "templates/GENERATORS_GUIDE.md"
+  "templates/EXTENSIONS_GUIDE.md"
+  "tests/TEST_TEMPLATES.md"
+)
 
 usage() {
   cat <<EOF
 Usage:
-  setup-template.sh [TARGET_DIR] [--force]
+  setup-template.sh [TARGET_DIR] [--force] [--minimal]
   setup-template.sh --help
   setup-template.sh --version
 
 Arguments:
   TARGET_DIR   Target repository directory (default: current directory)
-  --force      Overwrite existing .github/copilot-instructions.md
+  --force      Overwrite existing template files
+  --minimal    Install only .github/copilot-instructions.md
 
 Examples:
   setup-template.sh
   setup-template.sh /path/to/repo
   setup-template.sh /path/to/repo --force
+  setup-template.sh /path/to/repo --minimal
 EOF
 }
 
 TARGET_DIR="."
 FORCE=""
+MINIMAL=""
 
 for arg in "$@"; do
   case "$arg" in
@@ -39,6 +55,9 @@ for arg in "$@"; do
       ;;
     --force)
       FORCE="--force"
+      ;;
+    --minimal)
+      MINIMAL="--minimal"
       ;;
     *)
       if [[ "$TARGET_DIR" == "." ]]; then
@@ -58,34 +77,65 @@ if [[ ! -d "$TARGET_DIR" ]]; then
   exit 1
 fi
 
-TARGET_FILE="$TARGET_DIR/$INSTRUCTIONS_PATH"
-mkdir -p "$TARGET_DIR/.github"
-
-if [[ -f "$TARGET_FILE" && "$FORCE" != "--force" ]]; then
-  echo "ℹ️ $TARGET_FILE already exists."
-  echo "   Use --force to overwrite."
-  echo "   Example: ./scripts/setup-template.sh /path/to/repo --force"
-  exit 0
-fi
-
 download_with_curl() {
-  curl -fsSL "$SOURCE_URL" -o "$TARGET_FILE"
+  local source_url="$1"
+  local target_file="$2"
+  curl -fsSL "$source_url" -o "$target_file"
 }
 
 download_with_wget() {
-  wget -qO "$TARGET_FILE" "$SOURCE_URL"
+  local source_url="$1"
+  local target_file="$2"
+  wget -qO "$target_file" "$source_url"
 }
 
-if command -v curl >/dev/null 2>&1; then
-  download_with_curl
-elif command -v wget >/dev/null 2>&1; then
-  download_with_wget
-else
+download_file() {
+  local rel_path="$1"
+  local source_url="$REPO_RAW_BASE/$rel_path"
+  local target_file="$TARGET_DIR/$rel_path"
+
+  mkdir -p "$(dirname "$target_file")"
+
+  if [[ -f "$target_file" && "$FORCE" != "--force" ]]; then
+    echo "ℹ️ Skipped existing: $rel_path"
+    SKIPPED=$((SKIPPED + 1))
+    return 0
+  fi
+
+  if command -v curl >/dev/null 2>&1; then
+    download_with_curl "$source_url" "$target_file"
+  elif command -v wget >/dev/null 2>&1; then
+    download_with_wget "$source_url" "$target_file"
+  else
+    echo "❌ Neither curl nor wget is installed."
+    exit 1
+  fi
+
+  echo "✅ Installed: $rel_path"
+  INSTALLED=$((INSTALLED + 1))
+}
+
+if ! command -v curl >/dev/null 2>&1 && ! command -v wget >/dev/null 2>&1; then
   echo "❌ Neither curl nor wget is installed."
   exit 1
 fi
 
-echo "✅ Installed $INSTRUCTIONS_PATH into: $TARGET_DIR"
+INSTALLED=0
+SKIPPED=0
+
+if [[ "$MINIMAL" == "--minimal" ]]; then
+  download_file "$INSTRUCTIONS_PATH"
+else
+  for path in "${ALL_TEMPLATE_PATHS[@]}"; do
+    download_file "$path"
+  done
+fi
+
+echo ""
+echo "Install summary:"
+echo "- Installed: $INSTALLED"
+echo "- Skipped (already existed): $SKIPPED"
+echo "- Target: $TARGET_DIR"
 echo ""
 echo "Next steps:"
 echo "1) Open that repo in VS Code"

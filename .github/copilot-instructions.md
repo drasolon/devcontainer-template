@@ -2,6 +2,20 @@
 
 When the user types `/devcontainer init`, run a complete guided flow to create a working devcontainer setup in the current repository.
 
+Before asking questions, load and consult these local reference files when present:
+- `prompts/MAIN_WIZARD.md`
+- `prompts/COPILOT_GUIDE.md`
+- `templates/GENERATORS_GUIDE.md`
+- `templates/IMAGE_SELECTION.md`
+- `templates/EXTENSIONS_GUIDE.md`
+- `components/LANGUAGES.md`
+- `components/DATABASES.md`
+- `components/GIS.md`
+- `components/DEV_TOOLS.md`
+- `tests/TEST_TEMPLATES.md`
+
+If some files are missing, continue with available instructions and apply safe defaults.
+
 ## Behavior Requirements
 
 1. Ask all required setup questions:
