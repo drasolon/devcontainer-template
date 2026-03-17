@@ -6,6 +6,25 @@ This guide explains how **Copilot Chat** should interact with the devcontainer t
 
 ---
 
+## Execution Guardrails (Mandatory)
+
+1. Support interactive and `--non-interactive` mode.
+2. In non-interactive mode, use safe defaults for missing answers and continue.
+3. Print final inferred-defaults summary for predictable CI behavior.
+4. For image selection, output: chosen image, why, tradeoffs, and `amd64`/`arm64` compatibility.
+5. Preflight-check host port conflicts and remap consistently in compose/env/backend/tests.
+6. Verify required tools before generation/tests: Docker, Compose, curl, language CLIs.
+7. If tools are missing, print actionable install steps per OS.
+8. Enforce secrets policy: placeholders by default, optional local-only random passwords, unsafe-default scan.
+9. Ensure healthchecks/readiness waits with bounded retries and clear failure reasons.
+10. Connectivity checks must match deployment mode (local, docker-image, semi-dev remote DB with TLS).
+11. Re-runs must be idempotent and preserve user custom sections.
+12. Enforce minimal extension policy and flag unexpected extras.
+13. Emit machine-readable report: `reports/devcontainer-init-report.json`.
+14. On partial failure, print cleanup commands and a minimal recovery path.
+
+---
+
 ## Command: `/devcontainer init`
 
 When a user types `/devcontainer init` in Copilot Chat, follow this complete flow:

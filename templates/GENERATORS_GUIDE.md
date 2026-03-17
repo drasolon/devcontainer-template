@@ -9,6 +9,34 @@ Based on user selections from the wizard, generate appropriate configuration fil
 5. Backend config files (For framework-specific database connections)
 6. Test scripts (In `tests/` directory)
 
+Generation must support both interactive and non-interactive runs.
+
+---
+
+## Run Modes
+
+### Interactive Mode (default)
+- Ask all questions from the wizard.
+- Confirm critical decisions (image, deployment mode, ports, framework).
+
+### Non-Interactive Mode (`--non-interactive`)
+- If answers are missing, use safe defaults and continue.
+- Never block waiting for user input.
+- Emit a final inferred-defaults summary so CI behavior is predictable.
+
+Suggested defaults when missing:
+- Deployment: `development-local`
+- Base image: language-optimized image or `mcr.microsoft.com/devcontainers/base:ubuntu`
+- Database ports: standard defaults with conflict-aware remap
+- Secrets: placeholders only (or generated random values only when explicitly local-only)
+- Java framework: `spring-boot` with a `plain-java` fallback profile
+
+Required end-of-run summary fields:
+- missing inputs detected
+- defaults inferred
+- any auto-remapped ports
+- files created/updated
+
 ---
 
 ## 1. devcontainer.json Generator
@@ -50,6 +78,19 @@ Based on user selections from the wizard, generate appropriate configuration fil
 **Step 1: Determine Base Image**
 - User selected from: Ubuntu, Python, Node.js, Go, Java, or Custom
 - Map to official image URL
+- Before finalizing, validate architecture compatibility for both `amd64` and `arm64` tags.
+- Output reasoning for the selected image:
+  - chosen image/tag
+  - why it was chosen
+  - tradeoffs (size, flexibility, preinstalled tools)
+
+Example reasoning output:
+```text
+Image selected: mcr.microsoft.com/devcontainers/typescript-node:20-bullseye
+Reason: Node.js/TypeScript detected as primary stack.
+Tradeoffs: larger than base Ubuntu, but faster setup due to preinstalled toolchain.
+Arch check: amd64=ok, arm64=ok
+```
 
 **Step 2: Add Language Features**
 ```json
@@ -87,6 +128,28 @@ Based on user selections from the wizard, generate appropriate configuration fil
     "8080": {"label": "GeoServer", "onAutoForward": "notify"}
   }
 }
+```
+
+**Step 3.1: Port Preflight & Remap**
+- Before writing files, check host port conflicts.
+- If a requested host port is in use, suggest the next available port and auto-remap when approved (or in non-interactive mode).
+- Reflect remapped ports consistently in:
+  - `docker-compose.yml`
+  - `.env.template` and `.env`
+  - backend config files
+  - test scripts
+
+Suggested check commands:
+```bash
+ss -ltn | awk '{print $4}'
+docker ps --format '{{.Ports}}'
+```
+
+Remap example:
+```text
+Requested: 5432
+In use: yes
+Remapped to: 55432
 ```
 
 **Step 4: Add Development Tools**
@@ -174,6 +237,8 @@ Based on user selections:
 - [ ] Custom services
 
 **Step 2: Build Service Entries**
+
+All services must include healthchecks where practical. If a service image lacks native health probes, add a readiness command in test scripts.
 
 **PostgreSQL Service**:
 ```yaml
@@ -332,7 +397,13 @@ networks:
 ### Generation Logic
 
 **Step 1: Create .env.template**
-All variables with explanations, NO actual passwords
+All variables with explanations, NO real secrets.
+
+Security requirements:
+- Never commit real credentials.
+- Use placeholders only in `.env.template`.
+- Optional: generate random passwords only for local-only dev when user opts in.
+- Add unsafe-default detection (for values like `password`, `admin`, `changeme`, `devpass`).
 
 **Step 2: Reference Components**
 
@@ -360,9 +431,9 @@ DEBUG=*
 DB_HOST=postgres
 DB_PORT=5432
 DB_USER=devuser
-DB_PASSWORD=devpass
+DB_PASSWORD=__REPLACE_WITH_SECURE_VALUE__
 DB_NAME=appdb
-DATABASE_URL=postgresql://devuser:devpass@postgres:5432/appdb
+DATABASE_URL=postgresql://devuser:__REPLACE_WITH_SECURE_VALUE__@postgres:5432/appdb
 ```
 
 **GIS Variables**:
@@ -370,8 +441,8 @@ DATABASE_URL=postgresql://devuser:devpass@postgres:5432/appdb
 # GeoServer
 GEO_SERVER_HOST=geoserver
 GEO_SERVER_PORT=8080
-GEO_ADMIN_USER=admin
-GEO_ADMIN_PASSWORD=geoserver
+GEO_ADMIN_USER=__REPLACE_WITH_SECURE_VALUE__
+GEO_ADMIN_PASSWORD=__REPLACE_WITH_SECURE_VALUE__
 
 # PostGIS
 POSTGIS_DB_HOST=postgres
@@ -385,8 +456,8 @@ POSTGIS_DB_NAME=gisdb
 ```bash
 REDIS_HOST=redis
 REDIS_PORT=6379
-REDIS_PASSWORD=devpass
-REDIS_URL=redis://:devpass@redis:6379
+REDIS_PASSWORD=__REPLACE_WITH_SECURE_VALUE__
+REDIS_URL=redis://:__REPLACE_WITH_SECURE_VALUE__@redis:6379
 ```
 
 **Complete .env.template Example**:
@@ -410,26 +481,26 @@ BACKEND_HOST=0.0.0.0
 DB_HOST=postgres
 DB_PORT=5432
 DB_USER=devuser
-DB_PASSWORD=devpass123  # Change this!
+DB_PASSWORD=__REPLACE_WITH_SECURE_VALUE__
 DB_NAME=gisdb
 
 # Connection string for ORMs
-DATABASE_URL=postgresql://devuser:devpass123@postgres:5432/gisdb
+DATABASE_URL=postgresql://devuser:__REPLACE_WITH_SECURE_VALUE__@postgres:5432/gisdb
 
 # ==================================
 # GeoServer Configuration
 # ==================================
 GEO_SERVER_HOST=geoserver
 GEO_SERVER_PORT=8080
-GEO_ADMIN_USER=admin
-GEO_ADMIN_PASSWORD=geoserver  # Change this!
+GEO_ADMIN_USER=__REPLACE_WITH_SECURE_VALUE__
+GEO_ADMIN_PASSWORD=__REPLACE_WITH_SECURE_VALUE__
 
 # ==================================
 # Redis Configuration
 # ==================================
 REDIS_HOST=redis
 REDIS_PORT=6379
-REDIS_PASSWORD=redis_devpass  # Change this!
+REDIS_PASSWORD=__REPLACE_WITH_SECURE_VALUE__
 
 # ==================================
 # Development Tools
@@ -485,6 +556,30 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 
 ## 5. Backend Config File Generator
 
+### Framework-aware Java Bootstrapping
+
+If Java is selected:
+- If framework is unknown, ask: `Spring Boot` vs `Plain Java`.
+- If still unknown (or non-interactive), generate:
+  - Spring-compatible config as default
+  - minimal fallback profile for plain Java
+
+Optional scaffolding:
+- Maven: generate `pom.xml` template with dependency hints
+- Gradle: generate `build.gradle` template with dependency hints
+
+Dependency hints should include only essentials:
+- web starter/framework core
+- database driver
+- test starter
+
+Example fallback strategy:
+```text
+java.framework=unknown
+generated profile: spring-boot (default)
+generated fallback profile: plain-java
+```
+
 ### For FastAPI (Python)
 **File**: `backend/config.py`
 ```python
@@ -534,6 +629,7 @@ module.exports = {
 | `Dockerfile` | If deployment=yes | Multi-stage, optimized for production |
 | `backend/config.py/js` | If framework detected | Framework-specific configuration |
 | `tests/*.sh` | Always | Based on selected components |
+| `reports/devcontainer-init-report.json` | Always | Machine-readable setup and test report |
 
 ---
 
@@ -548,9 +644,136 @@ After gathering all user inputs:
 - [ ] Generate Dockerfile (if deployment selected)
 - [ ] Generate backend config file (if framework detected)
 - [ ] Generate test scripts (based on services)
+- [ ] Preflight check required tools: Docker, Compose, curl, language-specific CLIs
+- [ ] If tool missing, print actionable install steps per OS (Linux/macOS/Windows)
+- [ ] Validate image architecture compatibility (`amd64`, `arm64`)
+- [ ] Run host-port conflict detection and remap consistently
+- [ ] Enforce idempotent merge when files already exist (preserve user custom sections)
+- [ ] Validate extension policy (minimal-only)
+- [ ] Run unsafe-default secret scan on generated env files
 - [ ] Create `.devcontainer/` directory if missing
 - [ ] Save all files to workspace
-- [ ] Output summary of generated files
+- [ ] Output machine-readable report + human summary
 - [ ] Prompt user to open `.env` and customize values
 - [ ] Run test suite automatically
 - [ ] Report test results
+
+---
+
+## Dependency & Tool Verification Contract
+
+Before generation and before running tests, verify:
+- Docker CLI
+- Docker Compose (`docker compose` or `docker-compose`)
+- `curl`
+- CLI tools used by selected test scripts (example: `psql`, `mongosh`, `redis-cli`)
+
+If missing, do not fail silently. Print actionable install guidance per OS and stop with a clear reason.
+
+---
+
+## Connectivity Tests by Deployment Mode
+
+### Local Dev
+- host-to-service checks (mapped ports)
+- service-to-service checks (internal network DNS/service names)
+
+### Docker Image Workflow
+- `docker build` succeeds
+- `docker run` smoke test succeeds
+- health endpoint responds
+
+### Semi-Dev with Remote DB
+- verify remote endpoint reachability from container
+- run connection probe using env-supplied host/port/db name
+- include TLS option checks (`sslmode`, CA path, strict/verify flags)
+
+---
+
+## Readiness and Retry Quality
+
+All validation scripts must:
+- wait for readiness with bounded retries and timeout
+- print clear failure reason (service unreachable, auth failure, DNS failure, TLS failure)
+- exit non-zero on real failures
+
+---
+
+## Idempotency and Merge Rules
+
+Re-running init must not duplicate or corrupt config.
+
+Rules:
+- merge minimally when files exist
+- preserve user-defined custom blocks/sections
+- keep stable key ordering where practical
+- do not re-add duplicate services, env vars, or ports
+
+---
+
+## Extension Policy Enforcement
+
+Enforce minimal extension policy by selected language only:
+- always `github.copilot`
+- one primary linting extension per selected language
+- one docs/intellisense extension per selected language
+
+Validation step:
+- parse generated extension list
+- flag extra/unexpected extensions
+- print remediation hint before final report
+
+---
+
+## Output Contract
+
+At end of run, emit machine-readable report:
+`reports/devcontainer-init-report.json`
+
+Example schema:
+```json
+{
+  "mode": "interactive|non-interactive",
+  "files": {
+    "created": [],
+    "updated": []
+  },
+  "defaultsInferred": [],
+  "ports": {
+    "requested": {},
+    "remapped": {}
+  },
+  "tests": [
+    {
+      "name": "postgres-connectivity",
+      "status": "pass|fail",
+      "details": "..."
+    }
+  ],
+  "fixesApplied": [],
+  "remainingManualSteps": []
+}
+```
+
+Also print a short human-readable summary.
+
+---
+
+## Rollback and Cleanup
+
+If setup fails partially:
+- print cleanup commands
+- provide minimal recovery path
+- keep scripts self-contained and re-runnable
+
+Suggested cleanup template:
+```bash
+docker compose down -v
+docker rm -f $(docker ps -aq --filter "name=<project>") 2>/dev/null || true
+docker volume prune -f
+```
+
+Recovery path:
+1. Fix reported issue (missing tool/port conflict/credentials)
+2. Re-run init in idempotent mode
+3. Re-run generated test suite
